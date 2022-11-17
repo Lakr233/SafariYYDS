@@ -7,55 +7,26 @@
 
 import SwiftUI
 
-struct Result: Identifiable {
+struct Application: Identifiable {
     let id: UUID = .init()
-    let image: NSImage
+    let icon: NSImage
     let name: String
 }
 
-struct ContentView: View {
+struct FameView: View {
     
-    @State var result: [Result]? = nil
-    
-    var body: some View {
-        if result != nil {
-            resultView
-        } else {
-            ProgressView()
-                .frame(width: 600, height: 400, alignment: .center)
-                .onAppear {
-                    loadApps()
-                }
-        }
-    }
-    
-    var resultView: some View {
-        Image("喜报")
-            .overlay { layout.padding() }
-    }
+    @State var glories: [Application]? = nil
     
     let columns = [GridItem(.adaptive(minimum: 80))]
     
-    var layout: some View {
+    var body: some View {
         VStack {
-            if let result {
-                Spacer().frame(height: 100)
-                HStack {
-                    Spacer()
-                    Text("您的计算机上有")
-                    Text("\(result.count)")
-                        .font(.system(size: 64, weight: .bold, design: .rounded))
-                    Text("个 Chromium 引擎！")
-                    Spacer()
-                }
-                .font(.title)
-                .bold()
-                .foregroundColor(.black)
+            if let glories {
                 ScrollView {
                     LazyVGrid(columns: columns, alignment: .center, spacing: 20) {
-                        ForEach(result) { item in
+                        ForEach(glories) { item in
                             VStack {
-                                Image(nsImage: item.image)
+                                Image(nsImage: item.icon)
                                     .antialiased(true)
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
@@ -75,21 +46,100 @@ struct ContentView: View {
             }
         }
     }
+}
+
+struct ContentView: View {
+    
+    @State var electronApps: [Application]? = nil
+    @State var rosetta2Apps: [Application]? = nil
+    
+    var body: some View {
+        if electronApps != nil {
+            resultView
+        } else {
+            ProgressView()
+                .frame(width: 600, height: 400, alignment: .center)
+                .onAppear {
+                    loadApps()
+                }
+        }
+    }
+    
+    var resultView: some View {
+        Image("喜报")
+            .overlay { layout.padding() }
+    }
+    
+    let columns = [GridItem(.adaptive(minimum: 80))]
+    
+    var layout: some View {
+        VStack {
+            Spacer().frame(height: 100)
+            
+            if let electronApps {
+                let display = HStack {
+                    Text("您的计算机上有")
+                    Text("\(electronApps.count)")
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                    Text("个 Chromium 引擎！")
+                }
+                .font(.title3)
+                .foregroundColor(.black)
+                
+                if #available(macOS 13, *) {
+                    display.bold()
+                } else {
+                    display
+                }
+                FameView(glories: electronApps)
+            }
+            
+            if let rosetta2Apps {
+                let display = HStack {
+                    Text("您的麦金塔上有")
+                    Text("\(rosetta2Apps.count)")
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                    Text("个 Rosetta2 应用！")
+                }
+                .font(.title3)
+                .foregroundColor(.black)
+                
+                if #available(macOS 13, *) {
+                    display.bold()
+                } else {
+                    display
+                }
+                FameView(glories: rosetta2Apps)
+            }
+        }
+    }
     
     func loadApps() {
         let searchDir = "/Applications"
         let contentes = try? FileManager.default.contentsOfDirectory(atPath: searchDir)
             .filter { $0.lowercased().hasSuffix(".app") }
-        var b = [Result]()
+        var b = [Application]()
+        var c = [Application]()
         for item in contentes ?? [] {
             guard let bundle = Bundle(path: searchDir + "/" + item) else { continue }
-            guard bundle.isElectronApp() else { continue }
             let image = NSWorkspace.shared.icon(forFile: bundle.bundlePath)
-            b += [Result(image: image, name: bundle.bundleURL.lastPathComponent)]
+            
+            if bundle.isElectronApp() {
+                b += [Application(icon: image, name: bundle.bundleURL.lastPathComponent)]
+                continue
+            }
+            
+            if bundle.isRosetta2TranslatedApp() {
+                c += [Application(icon: image, name: bundle.bundleURL.lastPathComponent)]
+                continue
+            }
         }
-        result = b
+        electronApps = b
+        rosetta2Apps = c
     }
 }
+
+
 
 extension Bundle {
     func isElectronApp() -> Bool {
@@ -106,6 +156,31 @@ extension Bundle {
             }
         }
         return false
+    }
+    
+    func isRosetta2TranslatedApp() -> Bool {
+        guard ProcessInfo.processInfo.machineHardwareName == "arm64" else {
+            return false
+        }
+        guard let architectures = self.executableArchitectures else {
+            return false
+        }
+        let arm64 = NSNumber(value: NSBundleExecutableArchitectureARM64)
+        return architectures.count == 1 && architectures.first != arm64
+    }
+}
+
+extension ProcessInfo {
+    /// Returns a `String` representing the machine hardware name or nil if there was an error invoking `uname(_:)` or decoding the response.
+    ///
+    /// Return value is the equivalent to running `$ uname -m` in shell.
+    var machineHardwareName: String? {
+        var sysinfo = utsname()
+        let result = uname(&sysinfo)
+        guard result == EXIT_SUCCESS else { return nil }
+        let data = Data(bytes: &sysinfo.machine, count: Int(_SYS_NAMELEN))
+        guard let identifier = String(bytes: data, encoding: .ascii) else { return nil }
+        return identifier.trimmingCharacters(in: .controlCharacters)
     }
 }
 
