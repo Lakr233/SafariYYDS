@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "喜报.png",
+      "filename" : "Celebration.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
@@ -19,3 +19,4 @@
     "version" : 1
   }
 }
+
